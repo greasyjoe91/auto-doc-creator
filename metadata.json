@@ -1,0 +1,5 @@
+{
+  "name": "02-AutoDoc Flow",
+  "description": "自动化文档生成器，利用 Gemini 3 将原始 SOP 转化为技术规格书、营销文案和用户手册。",
+  "requestFramePermissions": []
+}
