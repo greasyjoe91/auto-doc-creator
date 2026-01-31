@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DocStatus, DocType, GeneratedDoc, FileData } from './types';
 import { generateDocument } from './services/geminiService';
-import { parseFile, isGoogleSheetUrl, fetchGoogleSheetContent } from './services/fileParser';
+import { parseFile } from './services/fileParser';
 import { Button } from './components/Button';
 import { StatusBadge } from './components/StatusBadge';
-import { FileText, Wand2, Download, Copy, BookOpen, Sparkles, Layout, UploadCloud, X, FileSpreadsheet, Paperclip, ChevronDown, ChevronRight, Play, AlertCircle, Link as LinkIcon, FileVideo, Video, Image as ImageIcon } from 'lucide-react';
+import { FileText, Wand2, Download, Copy, BookOpen, Sparkles, Layout, UploadCloud, X, FileSpreadsheet, Paperclip, ChevronDown, ChevronRight, Play, AlertCircle, Link as LinkIcon, FileVideo, Video, Image as ImageIcon, Sun, Moon, Trash2 } from 'lucide-react';
 import { marked } from 'marked';
 
 const INITIAL_DOCS: Record<DocType, GeneratedDoc> = {
@@ -13,7 +13,7 @@ const INITIAL_DOCS: Record<DocType, GeneratedDoc> = {
   [DocType.USER_MANUAL]: { type: DocType.USER_MANUAL, title: '3. 软件用户操作手册', content: '', status: DocStatus.IDLE }
 };
 
-type InputMode = 'text' | 'file';
+type Theme = 'light' | 'dark';
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
   [DocType.TECH_SPEC]: '规格书模版',
@@ -22,13 +22,14 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
 };
 
 export default function App() {
-  // Input State
-  const [inputMode, setInputMode] = useState<InputMode>('text');
-  const [textInput, setTextInput] = useState('');
-  const [fileInput, setFileInput] = useState<FileData | null>(null);
+  // Theme State (Default Light)
+  const [theme, setTheme] = useState<Theme>('light');
+
+  // Multi-File State for SOPs
+  const [sopFiles, setSopFiles] = useState<FileData[]>([]);
   
-  // Video Input State (New)
-  const [videoInput, setVideoInput] = useState<FileData | null>(null);
+  // Multi-File State for Videos
+  const [videoFiles, setVideoFiles] = useState<FileData[]>([]);
   const [isVideoParsing, setIsVideoParsing] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -50,53 +51,97 @@ export default function App() {
   const [docs, setDocs] = useState<Record<DocType, GeneratedDoc>>(INITIAL_DOCS);
   const [activeTab, setActiveTab] = useState<DocType>(DocType.TECH_SPEC);
 
+  // Apply theme to document
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   const updateDoc = (type: DocType, updates: Partial<GeneratedDoc>) => {
     setDocs(prev => ({ ...prev, [type]: { ...prev[type], ...updates } }));
   };
 
-  // --- SOP File Handling ---
-  const handleSopFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // --- SOP File Handling (Multi) ---
+  const handleSopFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     
     setIsParsing(true);
     setUploadError(null);
+    const newFiles: FileData[] = [];
+
     try {
-      const parsedData = await parseFile(file);
-      // Validate that it's not a video file in the SOP slot (though accept attr handles most)
-      if (parsedData.videoFrames) {
-        throw new Error("请在下方“视频素材”区域上传视频文件。");
+      for (let i = 0; i < files.length; i++) {
+        const parsedData = await parseFile(files[i]);
+        if (parsedData.videoFrames) {
+          throw new Error(`文件 ${files[i].name} 似乎是视频，请在下方“视频素材”区域上传。`);
+        }
+        newFiles.push(parsedData);
       }
-      setFileInput(parsedData);
+      setSopFiles(prev => [...prev, ...newFiles]);
     } catch (err: any) {
       setUploadError(err.message);
-      setFileInput(null);
     } finally {
       setIsParsing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // --- Video File Handling ---
-  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const removeSopFile = (index: number) => {
+    setSopFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // --- Video File Handling (Multi & Dynamic Frames) ---
+  const handleVideoFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setIsVideoParsing(true);
     setVideoError(null);
+    
+    // Logic: Calculate total expected videos to determine frame budget
+    // We consider existing videos + new videos for the budget of *new* videos (simplification)
+    // Or we stick to a robust heuristic:
+    // If uploading 1 video -> 30 frames.
+    // If uploading 5 videos -> 6 frames each.
+    // Total budget: 60 frames.
+    
+    const TOTAL_FRAME_BUDGET = 60;
+    const countOfNewFiles = files.length;
+    
+    // We calculate density based on the batch being uploaded. 
+    // This allows user to upload 1 "Main" video (high detail) then 5 "Small" videos (low detail) in separate batches if they want.
+    const framesPerVideo = Math.max(4, Math.floor(TOTAL_FRAME_BUDGET / countOfNewFiles));
+    
+    const newVideos: FileData[] = [];
+
     try {
-      const parsedData = await parseFile(file);
-      if (!parsedData.videoFrames) {
-         throw new Error("未能识别视频内容，请上传有效的 MP4/MOV 文件。");
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const parsedData = await parseFile(file, { videoFrameCount: framesPerVideo });
+        if (!parsedData.videoFrames) {
+           throw new Error(`文件 ${file.name} 无法解析为视频。`);
+        }
+        newVideos.push(parsedData);
       }
-      setVideoInput(parsedData);
+      setVideoFiles(prev => [...prev, ...newVideos]);
     } catch (err: any) {
       setVideoError(err.message);
-      setVideoInput(null);
     } finally {
       setIsVideoParsing(false);
       if (videoInputRef.current) videoInputRef.current.value = '';
     }
+  };
+
+  const removeVideoFile = (index: number) => {
+    setVideoFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleTemplateUpload = async (type: DocType, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,28 +164,9 @@ export default function App() {
     setTemplates(prev => ({ ...prev, [type]: null }));
   };
 
-  const handleRemoveSopFile = () => {
-    setFileInput(null);
-    setUploadError(null);
-  };
-
-  const handleRemoveVideo = () => {
-    setVideoInput(null);
-    setVideoError(null);
-  }
-
-  const getSopData = (): FileData => {
-    if (inputMode === 'file' && fileInput) return fileInput;
-    return {
-      type: 'text',
-      content: textInput,
-      isPdf: false
-    };
-  };
-
   // --- Generation Logic ---
   const canGenerate = (type: DocType): { allowed: boolean; reason?: string } => {
-    const sopReady = !!getSopData().content;
+    const sopReady = sopFiles.length > 0;
     const techSpecReady = !!docs[DocType.TECH_SPEC].content;
     const isGeneratingAny = Object.values(docs).some((d: GeneratedDoc) => d.status === DocStatus.GENERATING);
 
@@ -150,13 +176,13 @@ export default function App() {
       case DocType.TECH_SPEC:
         return sopReady 
           ? { allowed: true } 
-          : { allowed: false, reason: "请先输入 SOP 数据" };
+          : { allowed: false, reason: "请先上传 SOP 文件" };
       case DocType.MARKETING:
         return techSpecReady 
           ? { allowed: true } 
           : { allowed: false, reason: "需先生成技术规格书" };
       case DocType.USER_MANUAL:
-        if (!sopReady) return { allowed: false, reason: "请先输入 SOP 数据" };
+        if (!sopReady) return { allowed: false, reason: "请先上传 SOP 文件" };
         if (!techSpecReady) return { allowed: false, reason: "需先生成技术规格书" };
         return { allowed: true };
       default:
@@ -171,37 +197,15 @@ export default function App() {
         return;
     }
 
-    let sopData = getSopData();
-    
-    // Merge Video Frames into SOP Data if available
-    // NOTE: GeminiService will filter this out for TECH_SPEC, but we pass it here generally
-    if (videoInput?.videoFrames) {
-       sopData = {
-         ...sopData,
-         videoFrames: videoInput.videoFrames
-       };
-    }
-
     updateDoc(type, { status: DocStatus.GENERATING, error: undefined });
-
-    // Handle Google Sheet URL Fetching
-    if (sopData.type === 'text' && isGoogleSheetUrl(sopData.content)) {
-      try {
-        const sheetContent = await fetchGoogleSheetContent(sopData.content);
-        sopData = { ...sopData, content: sheetContent };
-      } catch (fetchErr: any) {
-        updateDoc(type, { status: DocStatus.ERROR, error: fetchErr.message });
-        return; // Stop generation
-      }
-    }
 
     try {
       let inputs: any = { 
-        sop: sopData, 
+        sopFiles: sopFiles, 
+        videoFiles: videoFiles,
         template: templates[type] 
       };
 
-      // Dependencies
       if (type === DocType.MARKETING || type === DocType.USER_MANUAL) {
          inputs.techSpec = docs[DocType.TECH_SPEC].content;
       }
@@ -216,22 +220,29 @@ export default function App() {
 
   // --- Render & Export Utils ---
   
-  // Post-process markdown to replace {{IMAGE_X}} with actual data URIs
-  const getRenderedContent = (markdown: string, videoFrames?: string[]) => {
-    if (!videoFrames || videoFrames.length === 0) return markdown;
+  // Combine all video frames from all files into a single linear array for rendering index matching
+  const getAllVideoFrames = (): string[] => {
+     let all: string[] = [];
+     videoFiles.forEach(v => {
+       if (v.videoFrames) all = [...all, ...v.videoFrames];
+     });
+     return all;
+  };
+
+  const getRenderedContent = (markdown: string, frames: string[]) => {
+    if (!frames || frames.length === 0) return markdown;
     
-    // Replace {{IMAGE_X}} with standard markdown image
     return markdown.replace(/\{\{IMAGE_(\d+)\}\}/g, (match, index) => {
       const frameIndex = parseInt(index, 10);
-      if (videoFrames[frameIndex]) {
-        return `\n\n![自动提取的视频截图 (Index: ${index})](data:image/jpeg;base64,${videoFrames[frameIndex]})\n\n`;
+      if (frames[frameIndex]) {
+        return `\n\n![自动提取的视频截图 (Index: ${index})](data:image/jpeg;base64,${frames[frameIndex]})\n\n`;
       }
-      return match; // Return original if index not found
+      return match; 
     });
   };
 
-  const getHtmlContent = (markdown: string, title: string, videoFrames?: string[]) => {
-    const processedMarkdown = getRenderedContent(markdown, videoFrames);
+  const getHtmlContent = (markdown: string, title: string, frames: string[]) => {
+    const processedMarkdown = getRenderedContent(markdown, frames);
     const htmlBody = marked.parse(processedMarkdown);
     return `
       <!DOCTYPE html>
@@ -260,8 +271,7 @@ export default function App() {
 
   const copyToClipboard = async (doc: GeneratedDoc) => {
     if (!doc.content) return;
-    // Use video frames from videoInput if available
-    const activeVideoFrames = videoInput?.videoFrames;
+    const activeVideoFrames = getAllVideoFrames();
     const finalContent = getRenderedContent(doc.content, activeVideoFrames);
 
     try {
@@ -278,7 +288,7 @@ export default function App() {
   };
 
   const downloadAsDoc = (doc: GeneratedDoc) => {
-    const activeVideoFrames = videoInput?.videoFrames;
+    const activeVideoFrames = getAllVideoFrames();
     const content = getHtmlContent(doc.content, doc.title, activeVideoFrames);
     const file = new Blob([content], {type: 'text/html'});
     const element = document.createElement("a");
@@ -289,207 +299,178 @@ export default function App() {
     document.body.removeChild(element);
   };
 
-  // Render logic for main area
   const currentDoc = docs[activeTab];
   const generationCheck = canGenerate(activeTab);
-  
-  // Combine video frames for display rendering
-  const activeVideoFrames = videoInput?.videoFrames;
+  const activeVideoFrames = getAllVideoFrames();
   const displayContent = getRenderedContent(currentDoc.content, activeVideoFrames);
   
-  // Helper to check if current text input is a URL for UI Hint
-  const isSheetLink = inputMode === 'text' && isGoogleSheetUrl(textInput);
-  const hasVideo = !!activeVideoFrames && activeVideoFrames.length > 0;
-  // Tech spec does not support video
+  const hasVideo = activeVideoFrames.length > 0;
   const showVideoBadge = hasVideo && activeTab !== DocType.TECH_SPEC;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen transition-colors duration-300 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-200 flex flex-col md:flex-row font-sans">
       
       {/* Sidebar */}
-      <aside className="w-full md:w-80 bg-slate-950 border-r border-slate-800 flex flex-col h-screen sticky top-0">
-        <div className="p-6 border-b border-slate-800 shrink-0">
+      <aside className="w-full md:w-80 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0 transition-colors duration-300">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Sparkles size={18} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold text-white">AutoDoc Flow</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">AutoDoc Flow</h1>
           </div>
-          <p className="text-xs text-slate-500">SOP 文档自动化生成工具</p>
+          <p className="text-xs text-slate-500 dark:text-slate-500">SOP 文档自动化生成工具</p>
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
           
-          {/* SOP Input Section */}
+          {/* SOP Input Section (Multi-File) */}
           <div className="flex flex-col">
-             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+             <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
               <FileText size={12} /> SOP 输入数据 (必须)
             </label>
             
-            <div className="flex bg-slate-900 p-1 rounded-md mb-3 border border-slate-800">
-              <button 
-                onClick={() => setInputMode('text')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded ${inputMode === 'text' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-slate-300'}`}
+            <div className="flex flex-col gap-2">
+              <div 
+                className={`
+                  border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-4 text-center transition-all cursor-pointer
+                  border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-900
+                `}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if(e.dataTransfer.files?.length > 0) {
+                      const event = { target: { files: e.dataTransfer.files } } as any;
+                      handleSopFilesChange(event);
+                  }
+                }}
               >
-                文本 / 链接
-              </button>
-              <button 
-                onClick={() => setInputMode('file')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded ${inputMode === 'file' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-slate-300'}`}
-              >
-                文档上传
-              </button>
-            </div>
-
-            {inputMode === 'text' ? (
-              <div className="relative">
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="在此粘贴您的 CSV 内容、SOP 原始文本或 Google Sheet 链接..."
-                  className="w-full min-h-[120px] bg-slate-900 border border-slate-800 rounded-md p-3 text-xs font-mono text-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none resize-y"
+                <input 
+                  type="file" 
+                  multiple // Allow multiple
+                  ref={fileInputRef}
+                  className="hidden" 
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                  onChange={handleSopFilesChange}
                 />
-                {isSheetLink && (
-                  <div className="absolute bottom-2 right-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] px-2 py-1 rounded flex items-center gap-1 backdrop-blur-sm">
-                    <LinkIcon size={10} />
-                    <span>自动读取</span>
+                
+                {isParsing ? (
+                  <div className="flex flex-col items-center gap-2 py-2">
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">正在解析文件...</span>
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    <UploadCloud size={20} className="mx-auto text-slate-400 dark:text-slate-500 mb-2" />
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">点击上传 / 拖入多个 SOP</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-600 mt-1">支持 PDF, Word, Excel, Txt</p>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <div 
-                  className={`
-                    border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-4 text-center transition-all
-                    ${fileInput ? 'border-blue-500/50 bg-blue-500/5' : 'border-slate-800 hover:border-slate-600 bg-slate-900'}
-                  `}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if(e.dataTransfer.files?.[0]) {
-                       const event = { target: { files: e.dataTransfer.files } } as any;
-                       handleSopFileChange(event);
-                    }
-                  }}
-                >
-                  <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    className="hidden" 
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-                    onChange={handleSopFileChange}
-                  />
-                  
-                  {isParsing ? (
-                    <div className="flex flex-col items-center gap-2 py-2">
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
-                      <span className="text-xs text-slate-400">文档解析中...</span>
-                    </div>
-                  ) : fileInput ? (
-                    <div className="w-full relative">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-lg flex items-center justify-center shrink-0">
-                          {fileInput.isPdf ? <FileText size={16}/> : <FileSpreadsheet size={16}/>}
+              
+              {/* File List */}
+              {sopFiles.length > 0 && (
+                <div className="flex flex-col gap-1.5 mt-1">
+                  {sopFiles.map((file, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-900 p-2 rounded-md border border-slate-200 dark:border-slate-800 flex items-center gap-2 shadow-sm">
+                        <div className="w-6 h-6 bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded flex items-center justify-center shrink-0">
+                          {file.isPdf ? <FileText size={12}/> : <FileSpreadsheet size={12}/>}
                         </div>
-                        <div className="text-left flex-1 min-w-0">
-                          <p className="text-xs font-medium text-white truncate">{fileInput.fileName}</p>
-                          <p className="text-[10px] text-slate-500">{fileInput.isPdf ? 'PDF' : 'Text Extracted'}</p>
+                        <div className="flex-1 min-w-0">
+                           <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{file.fileName}</p>
                         </div>
                         <button 
-                           onClick={(e) => { e.stopPropagation(); handleRemoveSopFile(); }}
-                           className="text-slate-500 hover:text-red-400 p-1"
+                          onClick={() => removeSopFile(idx)}
+                          className="text-slate-400 hover:text-red-500 p-1"
                         >
-                          <X size={14} />
+                          <Trash2 size={12} />
                         </button>
-                      </div>
                     </div>
-                  ) : (
-                    <div className="cursor-pointer py-2" onClick={() => fileInputRef.current?.click()}>
-                      <UploadCloud size={20} className="mx-auto text-slate-500 mb-2" />
-                      <p className="text-xs font-medium text-slate-300">上传 SOP 文档</p>
-                      <p className="text-[10px] text-slate-600 mt-1">PDF, Excel, Word, Txt</p>
-                    </div>
-                  )}
+                  ))}
+                  <p className="text-[10px] text-slate-400 text-right px-1">共 {sopFiles.length} 个模块文件</p>
                 </div>
-                {uploadError && <p className="text-[10px] text-red-400">{uploadError}</p>}
-              </div>
-            )}
+              )}
+
+              {uploadError && <p className="text-[10px] text-red-500 dark:text-red-400">{uploadError}</p>}
+            </div>
           </div>
 
-          {/* Video Input Section (New) */}
-          <div className="border-t border-slate-800 pt-4">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+          {/* Video Input Section (Multi-File) */}
+          <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
               <Video size={12} /> 软件录屏 / 配图 (可选)
             </label>
             
             <div className="flex flex-col gap-2">
-               {!videoInput ? (
-                 <div 
-                   className="border-2 border-dashed border-slate-800 hover:border-slate-600 bg-slate-900 rounded-lg p-3 text-center cursor-pointer transition-all"
+               <div 
+                   className="border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 text-center cursor-pointer transition-all"
                    onClick={() => videoInputRef.current?.click()}
                    onDragOver={(e) => e.preventDefault()}
                    onDrop={(e) => {
                      e.preventDefault();
-                     if(e.dataTransfer.files?.[0]) {
+                     if(e.dataTransfer.files?.length > 0) {
                         const event = { target: { files: e.dataTransfer.files } } as any;
-                        handleVideoFileChange(event);
+                        handleVideoFilesChange(event);
                      }
                    }}
                  >
                    <input 
                       type="file" 
+                      multiple // Allow multiple
                       ref={videoInputRef}
                       className="hidden" 
                       accept=".mp4,.mov,.webm"
-                      onChange={handleVideoFileChange}
+                      onChange={handleVideoFilesChange}
                     />
                    {isVideoParsing ? (
                       <div className="flex items-center justify-center gap-2">
                          <div className="w-4 h-4 border border-blue-500 border-t-transparent rounded-full animate-spin"/>
-                         <span className="text-xs text-slate-400">提取高清关键帧...</span>
+                         <span className="text-xs text-slate-500 dark:text-slate-400">正在按智能策略提取帧...</span>
                       </div>
                    ) : (
                       <div className="flex items-center justify-center gap-2">
-                        <FileVideo size={16} className="text-slate-500" />
-                        <span className="text-xs text-slate-400">上传视频 (.mp4)</span>
+                        <FileVideo size={16} className="text-slate-400 dark:text-slate-500" />
+                        <span className="text-xs text-slate-500 dark:text-slate-400">拖入多个视频 (.mp4)</span>
                       </div>
                    )}
                  </div>
-               ) : (
-                 <div className="bg-slate-900 rounded-md border border-slate-800 p-2">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                           <FileVideo size={14} className="text-purple-400 shrink-0" />
-                           <span className="text-xs text-slate-300 truncate">{videoInput.fileName}</span>
-                        </div>
-                        <button onClick={handleRemoveVideo} className="text-slate-500 hover:text-red-400">
-                           <X size={14} />
-                        </button>
-                    </div>
-                    {/* Thumbnails Grid */}
-                    <div className="grid grid-cols-4 gap-1">
-                      {videoInput.videoFrames?.slice(0, 4).map((frame, i) => (
-                        <div key={i} className="aspect-video relative rounded-sm overflow-hidden bg-black">
-                           <img src={`data:image/jpeg;base64,${frame}`} className="w-full h-full object-cover opacity-80" />
-                        </div>
-                      ))}
-                      {videoInput.videoFrames && videoInput.videoFrames.length > 4 && (
-                        <div className="aspect-video bg-slate-800 flex items-center justify-center text-[10px] text-slate-500 rounded-sm">
-                           +{videoInput.videoFrames.length - 4}
-                        </div>
-                      )}
-                    </div>
+
+               {/* Video List */}
+               {videoFiles.length > 0 && (
+                 <div className="flex flex-col gap-2 mt-1">
+                    {videoFiles.map((v, idx) => (
+                      <div key={idx} className="bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800 p-2 shadow-sm">
+                          <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileVideo size={12} className="text-purple-500 dark:text-purple-400 shrink-0" />
+                                <span className="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{v.fileName}</span>
+                              </div>
+                              <button onClick={() => removeVideoFile(idx)} className="text-slate-400 hover:text-red-500">
+                                <Trash2 size={12} />
+                              </button>
+                          </div>
+                          {/* Mini Grid for this video */}
+                          <div className="flex gap-0.5 overflow-hidden h-8 rounded opacity-80">
+                             {v.videoFrames?.slice(0, 5).map((f, fi) => (
+                               <img key={fi} src={`data:image/jpeg;base64,${f}`} className="w-auto h-full object-cover" />
+                             ))}
+                          </div>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-400 text-right px-1">共 {videoFiles.length} 个视频，总计 {getAllVideoFrames().length} 张截图</p>
                  </div>
                )}
-               {videoError && <p className="text-[10px] text-red-400">{videoError}</p>}
+               
+               {videoError && <p className="text-[10px] text-red-500 dark:text-red-400">{videoError}</p>}
             </div>
           </div>
 
           {/* Reference Templates Section */}
-          <div className="border-t border-slate-800 pt-4">
+          <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
              <button 
                onClick={() => setShowTemplates(!showTemplates)}
-               className="w-full flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 hover:text-white"
+               className="w-full flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 hover:text-slate-900 dark:hover:text-white transition-colors"
              >
                <span className="flex items-center gap-2"><Paperclip size={12} /> 参考模版 (可选)</span>
                {showTemplates ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -498,13 +479,13 @@ export default function App() {
              {showTemplates && (
                <div className="space-y-3 pl-1">
                  {[DocType.TECH_SPEC, DocType.MARKETING, DocType.USER_MANUAL].map((type) => (
-                   <div key={type} className="bg-slate-900 rounded-md border border-slate-800 p-2">
+                   <div key={type} className="bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800 p-2">
                      <div className="flex items-center justify-between mb-2">
-                       <span className="text-xs text-slate-300 font-medium">{DOC_TYPE_LABELS[type]}</span>
+                       <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">{DOC_TYPE_LABELS[type]}</span>
                        {templates[type] && (
                          <button 
                            onClick={() => removeTemplate(type)}
-                           className="text-[10px] text-red-400 hover:text-red-300"
+                           className="text-[10px] text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                          >
                            移除
                          </button>
@@ -512,17 +493,17 @@ export default function App() {
                      </div>
                      
                      {templates[type] ? (
-                       <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded border border-slate-800/50">
-                         <FileText size={12} className="text-blue-400" />
-                         <span className="text-[10px] text-slate-400 truncate flex-1">{templates[type]?.fileName}</span>
+                       <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 p-1.5 rounded border border-slate-200 dark:border-slate-800/50">
+                         <FileText size={12} className="text-blue-500 dark:text-blue-400" />
+                         <span className="text-[10px] text-slate-600 dark:text-slate-400 truncate flex-1">{templates[type]?.fileName}</span>
                        </div>
                      ) : (
-                       <label className="flex items-center justify-center gap-2 w-full h-8 border border-dashed border-slate-700 rounded cursor-pointer hover:bg-slate-800 transition-colors">
+                       <label className="flex items-center justify-center gap-2 w-full h-8 border border-dashed border-slate-300 dark:border-slate-700 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                          {parsingTemplate === type ? (
                            <span className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin"/>
                          ) : (
                            <>
-                             <UploadCloud size={12} className="text-slate-500" />
+                             <UploadCloud size={12} className="text-slate-400 dark:text-slate-500" />
                              <span className="text-[10px] text-slate-500">上传</span>
                            </>
                          )}
@@ -544,18 +525,18 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-900">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
         
         {/* Header */}
-        <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center px-6 justify-between shrink-0">
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/50 backdrop-blur-md flex items-center px-6 justify-between shrink-0 transition-colors duration-300">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
             {[DocType.TECH_SPEC, DocType.MARKETING, DocType.USER_MANUAL].map((type) => (
               <button
                 key={type}
                 onClick={() => setActiveTab(type)}
                 className={`
                   px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2
-                  ${activeTab === type ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}
+                  ${activeTab === type ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}
                 `}
               >
                 {type === DocType.TECH_SPEC && <Layout size={14} />}
@@ -567,8 +548,16 @@ export default function App() {
             ))}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
              <StatusBadge status={currentDoc.status} />
+             <div className="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
+             <button 
+               onClick={toggleTheme}
+               className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+               title="切换主题"
+             >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+             </button>
           </div>
         </header>
 
@@ -578,15 +567,15 @@ export default function App() {
             {/* Toolbar */}
             <div className="px-8 pt-6 pb-2 flex items-center justify-between shrink-0">
                  <div>
-                    <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                        {currentDoc.title}
                        {showVideoBadge && (
-                         <span className="flex items-center gap-1 text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
+                         <span className="flex items-center gap-1 text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-500/30">
                             <ImageIcon size={10} /> 包含截图
                          </span>
                        )}
                     </h2>
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">
                       {currentDoc.status === DocStatus.COMPLETED ? '生成完毕' : '等待生成'}
                     </p>
                  </div>
@@ -597,13 +586,13 @@ export default function App() {
                       onClick={() => handleGenerateSingle(activeTab)}
                       isLoading={currentDoc.status === DocStatus.GENERATING}
                       disabled={!generationCheck.allowed || currentDoc.status === DocStatus.GENERATING}
-                      className={currentDoc.status === DocStatus.COMPLETED ? "bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-600/30" : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20"}
+                      className={currentDoc.status === DocStatus.COMPLETED ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 dark:bg-blue-600/10 dark:hover:bg-blue-600/20 dark:text-blue-400 dark:border-blue-600/30" : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 dark:shadow-blue-900/20"}
                     >
                        <Wand2 size={16} />
                        {currentDoc.status === DocStatus.COMPLETED ? '重新生成' : '开始生成'}
                     </Button>
 
-                    <div className="h-6 w-px bg-slate-800 mx-1"></div>
+                    <div className="h-6 w-px bg-slate-300 dark:bg-slate-800 mx-1"></div>
 
                     <Button 
                       variant="secondary" 
@@ -628,7 +617,7 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-8 pt-4 scroll-smooth">
               <div className="max-w-4xl mx-auto pb-10">
                 {currentDoc.error ? (
-                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 flex items-center gap-3">
+                   <div className="p-4 bg-red-50 border border-red-200 dark:bg-red-500/10 dark:border-red-500/20 rounded-lg text-red-600 dark:text-red-400 flex items-center gap-3">
                       <AlertCircle size={20} />
                       <div>
                         <p className="font-medium">生成失败</p>
@@ -636,34 +625,34 @@ export default function App() {
                       </div>
                    </div>
                 ) : displayContent ? (
-                  <div className="prose prose-invert prose-slate max-w-none whitespace-pre-wrap leading-relaxed text-slate-300">
+                  <div className="prose prose-slate dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-300">
                     {/* Render the content with images injected */}
                     <div dangerouslySetInnerHTML={{ __html: marked.parse(displayContent) as string }} />
                   </div>
                 ) : (
-                  <div className="h-96 flex flex-col items-center justify-center text-slate-600 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/50">
+                  <div className="h-96 flex flex-col items-center justify-center text-slate-500 dark:text-slate-600 border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900/50">
                      {currentDoc.status === DocStatus.GENERATING ? (
                        <div className="text-center animate-pulse">
-                         <div className="w-16 h-16 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center">
+                         <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center">
                            <Wand2 size={32} className="text-blue-500 animate-spin-slow" />
                          </div>
-                         <h3 className="text-lg font-medium text-slate-300">正在生成内容...</h3>
+                         <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">正在生成内容...</h3>
                          <p className="text-sm text-slate-500 mt-2">Gemini 正在撰写文档</p>
-                         {showVideoBadge && <p className="text-xs text-purple-400 mt-1">正在分析视频素材库并匹配插图...</p>}
+                         {showVideoBadge && <p className="text-xs text-purple-500 dark:text-purple-400 mt-1">正在分析 {videoFiles.length} 个视频文件并匹配插图...</p>}
                        </div>
                      ) : (
                        <div className="text-center max-w-sm">
-                         <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 mx-auto">
-                            <FileText size={32} className={generationCheck.allowed ? "text-slate-400" : "text-slate-600"} />
+                         <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 mx-auto">
+                            <FileText size={32} className={generationCheck.allowed ? "text-slate-400 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"} />
                          </div>
-                         <p className="text-slate-300 font-medium mb-1">暂无内容</p>
+                         <p className="text-slate-600 dark:text-slate-300 font-medium mb-1">暂无内容</p>
                          
                          {generationCheck.allowed ? (
                             <div className="space-y-3">
                                <p className="text-sm text-slate-500">点击上方按钮开始生成</p>
                             </div>
                          ) : (
-                            <p className="text-sm text-orange-400/80 bg-orange-400/10 px-3 py-1.5 rounded border border-orange-400/20 inline-block">
+                            <p className="text-sm text-orange-600/80 bg-orange-50 border border-orange-200 dark:text-orange-400/80 dark:bg-orange-400/10 px-3 py-1.5 rounded dark:border-orange-400/20 inline-block">
                                {generationCheck.reason}
                             </p>
                          )}

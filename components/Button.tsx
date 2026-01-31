@@ -13,17 +13,18 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props 
 }) => {
-  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900";
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-offset-white";
   
   const variants = {
-    primary: "bg-blue-600 hover:bg-blue-500 text-white focus:ring-blue-500 disabled:bg-blue-800 disabled:text-blue-300",
-    secondary: "bg-slate-700 hover:bg-slate-600 text-slate-100 focus:ring-slate-500 disabled:bg-slate-800",
-    ghost: "bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white"
+    primary: "bg-blue-600 hover:bg-blue-500 text-white focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed",
+    // Secondary: White/Gray in Light mode, Dark Slate in Dark mode
+    secondary: "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    ghost: "bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-900 dark:hover:bg-slate-800 dark:text-slate-400 dark:hover:text-white"
   };
 
   return (
     <button 
-      className={`${baseStyle} ${variants[variant]} ${className} ${isLoading || disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+      className={`${baseStyle} ${variants[variant]} ${className}`}
       disabled={isLoading || disabled}
       {...props}
     >

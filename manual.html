@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDoc Flow - 软件操作说明书</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .screenshot-placeholder {
+            background-color: #f1f5f9;
+            border: 2px dashed #cbd5e1;
+            border-radius: 0.5rem;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 0.875rem;
+            margin: 1rem 0;
+        }
+        .step-number {
+            background-color: #2563eb;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 leading-relaxed">
+
+    <div class="max-w-4xl mx-auto bg-white min-h-screen shadow-lg">
+        
+        <!-- Header -->
+        <header class="bg-slate-900 text-white p-8">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                </div>
+                <h1 class="text-3xl font-bold">AutoDoc Flow</h1>
+            </div>
+            <p class="text-slate-400 text-lg">智能化 SOP 文档生成系统操作手册</p>
+        </header>
+
+        <!-- Content -->
+        <div class="p-8 space-y-12">
+
+            <!-- Section 1: Intro -->
+            <section>
+                <h2 class="text-2xl font-bold text-slate-900 mb-4 border-b pb-2">1. 软件简介</h2>
+                <p class="mb-4">
+                    <strong>AutoDoc Flow</strong> 是一款基于 Google Gemini 3 大模型的智能化文档生成工具。它能帮助用户将原始的 SOP（标准作业程序）、CSV 数据或简单的操作脚本，一键转化为专业级的<strong>技术规格书</strong>、<strong>营销文案</strong>和<strong>用户操作手册</strong>。
+                </p>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
+                    <h3 class="font-bold text-blue-800 mb-1">核心亮点</h3>
+                    <ul class="list-disc list-inside text-sm text-blue-700 space-y-1">
+                        <li><strong>多模态输入</strong>：支持 PDF, Word, Excel, CSV 及视频文件 (MP4)。</li>
+                        <li><strong>视频智能截图</strong>：自动从录屏中提取高清关键帧，并自动匹配插入到文档对应位置。</li>
+                        <li><strong>模版克隆</strong>：上传已有文档作为模版，AI 将严格模仿其格式和文风。</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Section 2: UI Overview -->
+            <section>
+                <h2 class="text-2xl font-bold text-slate-900 mb-4 border-b pb-2">2. 界面概览</h2>
+                <p class="mb-2">软件界面分为左侧“输入控制区”和右侧“文档生成预览区”。</p>
+                
+                <div class="screenshot-placeholder">
+                    [请在此处粘贴：软件全屏截图]
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    <div>
+                        <h4 class="font-bold mb-2">左侧栏 (输入)</h4>
+                        <ul class="text-sm space-y-2 text-slate-600">
+                            <li>• <strong>SOP 输入数据</strong>：核心数据源，支持文本粘贴或文件上传。</li>
+                            <li>• <strong>软件录屏 / 配图</strong>：上传视频，AI 自动提取素材。</li>
+                            <li>• <strong>参考模版</strong>：上传旧文档，让 AI 学习风格。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-2">右侧栏 (输出)</h4>
+                        <ul class="text-sm space-y-2 text-slate-600">
+                            <li>• <strong>文档选项卡</strong>：切换规格书、营销文案、操作手册。</li>
+                            <li>• <strong>操作栏</strong>：生成、复制、导出 HTML。</li>
+                            <li>• <strong>预览区</strong>：实时渲染 Markdown 内容和图片。</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Workflow -->
+            <section>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6 border-b pb-2">3. 操作流程</h2>
+
+                <!-- Step 1 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <span class="step-number">1</span> 导入 SOP 数据
+                    </h3>
+                    <p class="text-slate-600 mb-3">这是生成所有文档的基础。您可以直接粘贴文本，也可以上传文件。</p>
+                    <ul class="list-disc list-inside text-sm text-slate-600 ml-8 mb-3">
+                        <li>支持 <strong>Google Sheet 链接</strong>（需开启共享权限）。</li>
+                        <li>支持 <strong>PDF, Word, Excel, CSV</strong> 文件。</li>
+                    </ul>
+                    <div class="screenshot-placeholder">
+                        [请在此处粘贴：左上角 SOP 输入区域截图，展示上传了一个 Excel 文件的状态]
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <span class="step-number">2</span> 上传录屏视频 (可选)
+                    </h3>
+                    <p class="text-slate-600 mb-3">
+                        如果您希望生成的《产品介绍》或《用户手册》包含配图，请在此处上传软件操作录屏 (MP4)。
+                    </p>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800 mb-3">
+                        <strong>注意：</strong> 系统会自动提取约 20 张高清关键帧作为“素材库”。AI 会根据文案内容，自动从中挑选最合适的图片插入。
+                    </div>
+                    <div class="screenshot-placeholder">
+                        [请在此处粘贴：左侧中间视频上传区域截图，展示已提取出缩略图的状态]
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <span class="step-number">3</span> 配置参考模版 (可选)
+                    </h3>
+                    <p class="text-slate-600 mb-3">
+                        如果您有固定的公司文档格式，请在左下角上传对应的参考文件（如 PDF 或 Word）。AI 会“克隆”其排版风格。
+                    </p>
+                    <div class="screenshot-placeholder">
+                        [请在此处粘贴：左下角参考模版区域截图]
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <span class="step-number">4</span> 生成文档
+                    </h3>
+                    <p class="text-slate-600 mb-3">
+                        在右侧顶部切换您需要生成的文档类型，然后点击蓝色 <strong>“开始生成”</strong> 按钮。
+                    </p>
+                    <div class="space-y-4">
+                        <div class="border rounded-lg p-4 bg-white">
+                            <h4 class="font-bold text-sm mb-1">推荐生成顺序：</h4>
+                            <ol class="list-decimal list-inside text-sm text-slate-600">
+                                <li>先生成 <strong>1. 软件参数规格书</strong> (分析基础数据，不含图)。</li>
+                                <li>再生成 <strong>2. 软件产品介绍</strong> (基于规格书，自动配图)。</li>
+                                <li>最后生成 <strong>3. 软件用户操作手册</strong> (基于规格书+SOP，自动配图)。</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="screenshot-placeholder">
+                        [请在此处粘贴：右侧生成中文档的加载状态，或生成完成后的预览截图]
+                    </div>
+                </div>
+
+                <!-- Step 5 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <span class="step-number">5</span> 导出与分享
+                    </h3>
+                    <p class="text-slate-600 mb-3">
+                        文档生成满意后，您可以使用右上角的工具栏：
+                    </p>
+                    <ul class="list-disc list-inside text-sm text-slate-600 ml-8">
+                        <li><strong>复制</strong>：将内容（包含图片）复制到剪贴板，可直接粘贴到 Google Docs 或 Word。</li>
+                        <li><strong>导出</strong>：下载为 HTML 格式文件，方便离线查看。</li>
+                    </ul>
+                </div>
+
+            </section>
+
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-slate-100 text-slate-500 text-center py-6 text-sm border-t">
+            <p>&copy; 2025 AutoDoc Flow. All rights reserved.</p>
+        </footer>
+    </div>
+
+</body>
+</html>
