@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist_electron
 *.local
+
+# Environment variables (重要：防止 API Key 泄露)
+.env
+.env.local
+.env.*.local
+server/.env
 
 # Editor directories and files
 .vscode/*
