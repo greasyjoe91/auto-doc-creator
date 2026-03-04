@@ -5,10 +5,12 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
+// 兼容 ESM 和 CJS 的 __dirname 获取方式
+const currentDir = typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(currentDir, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,12 +18,8 @@ const PORT = process.env.PORT || 3001;
 // 中间件配置
 app.use(cors({
     origin: (origin, callback) => {
-        // 在 Electron 环境或开发环境下允许常见的本地端口
-        if (!origin || origin.startsWith('http://localhost') || origin.startsWith('file://')) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
+        // 允许所有来源（桌面应用内部通信）
+        callback(null, true);
     },
     credentials: true
 }));
@@ -33,7 +31,7 @@ const getClient = () => {
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY 环境变量未设置');
     }
-    return new GoogleGenAI(apiKey);
+    return new GoogleGenAI({ apiKey });
 };
 
 // 健康检查接口
@@ -51,17 +49,15 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const ai = getClient();
-        const modelInstance = ai.getGenerativeModel({
-            model: model || 'gemini-3-flash-preview'
-        });
 
-        const result = await modelInstance.generateContent({
+        const response = await ai.models.generateContent({
+            model: model || 'gemini-3-flash-preview',
             contents,
-            ...config
+            config: config || {}
         });
 
         res.json({
-            text: result.response.text() || '',
+            text: response.text || '',
             success: true
         });
     } catch (error: any) {
@@ -73,11 +69,12 @@ app.post('/api/generate', async (req, res) => {
     }
 });
 
-// 在生产环境下提供静态文件
-const distPath = path.join(__dirname, '..', 'dist');
+// 在打包环境下提供前端静态文件
+// Electron 的 file:// 协议不支持 ES Module，因此前端必须通过 http:// 伺服
+const distPath = path.resolve(currentDir, '..', 'dist');
 app.use(express.static(distPath));
 
-// 处理 SPA 路由
+// SPA 兜底路由：所有非 API 请求都返回 index.html
 app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
         res.sendFile(path.join(distPath, 'index.html'));

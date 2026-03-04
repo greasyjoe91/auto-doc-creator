@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 dist_electron
+unpacked_asar
 *.local
+
+# 服务器编译产物
+server/index.cjs
+server/index.js
 
 # Environment variables (重要：防止 API Key 泄露)
 .env

@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* 自定义 Tailwind 暗色模式配置 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 自定义颜色扩展 */
+@theme {
+  --color-slate-850: #151e2e;
+}
