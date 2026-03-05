@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
+import { Ollama } from 'ollama';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { decrypt } from './crypto.js';
 
 // 兼容 ESM 和 CJS 的 __dirname 获取方式
 const currentDir = typeof __dirname !== 'undefined'
@@ -27,11 +29,24 @@ app.use(express.json({ limit: '100mb' })); // 支持大型请求体（视频帧�
 
 // 初始化 Gemini 客户端
 const getClient = () => {
-    const apiKey = process.env.GEMINI_API_KEY;
+    let apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY 环境变量未设置');
     }
+    if (apiKey.includes(':')) {
+        try {
+            apiKey = decrypt(apiKey);
+        } catch (error) {
+            console.error('API Key 解密失败，尝试使用原始值');
+        }
+    }
     return new GoogleGenAI({ apiKey });
+};
+
+// 初始化 Ollama 客户端
+const getOllamaClient = () => {
+    const baseUrl = process.env.QWEN_BASE_URL || 'http://localhost:11434';
+    return new Ollama({ host: baseUrl });
 };
 
 // 健康检查接口
@@ -39,27 +54,98 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Claude API 兼容接口（用于 OpenClaw 等工具）
+app.post('/v1/messages', async (req, res) => {
+    try {
+        const { model, messages, max_tokens, stream } = req.body;
+
+        if (!messages || !Array.isArray(messages)) {
+            return res.status(400).json({ error: { message: '缺少 messages 参数' } });
+        }
+
+        const ollama = getOllamaClient();
+        const qwenModel = process.env.QWEN_MODEL || 'qwen2.5:14b';
+
+        // 转换 Claude 格式到 Ollama 格式
+        const ollamaMessages = messages.map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : m.content.map((c: any) => c.text || '').join('\n')
+        }));
+
+        const response = await ollama.chat({
+            model: qwenModel,
+            messages: ollamaMessages,
+            stream: false
+        });
+
+        // 返回 Claude API 格式
+        res.json({
+            id: `msg_${Date.now()}`,
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: response.message.content }],
+            model: qwenModel,
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 0, output_tokens: 0 }
+        });
+    } catch (error: any) {
+        console.error('[Claude API Error]', error.message);
+        res.status(500).json({
+            error: { message: error.message || 'Internal server error' }
+        });
+    }
+});
+
 // 文档生成代理接口
 app.post('/api/generate', async (req, res) => {
     try {
-        const { model, contents, config } = req.body;
+        const { model, contents, config, useQwen } = req.body;
 
         if (!contents) {
             return res.status(400).json({ error: '缺少 contents 参数' });
         }
 
-        const ai = getClient();
+        const qwenEnabled = process.env.QWEN_ENABLED === 'true';
+        const shouldUseQwen = useQwen || false;
 
-        const response = await ai.models.generateContent({
-            model: model || 'gemini-3-flash-preview',
-            contents,
-            config: config || {}
-        });
+        if (shouldUseQwen && qwenEnabled) {
+            // 使用本地 Qwen 模型
+            const ollama = getOllamaClient();
+            const qwenModel = process.env.QWEN_MODEL || 'qwen2.5:14b';
 
-        res.json({
-            text: response.text || '',
-            success: true
-        });
+            // 转换 Gemini 格式到 Ollama 格式
+            const messages = contents.map((c: any) => ({
+                role: c.role === 'user' ? 'user' : 'assistant',
+                content: c.parts.map((p: any) => p.text || '').join('\n')
+            }));
+
+            const response = await ollama.chat({
+                model: qwenModel,
+                messages,
+                stream: false
+            });
+
+            res.json({
+                text: response.message.content || '',
+                success: true,
+                usedModel: 'qwen'
+            });
+        } else {
+            // 使用 Gemini API
+            const ai = getClient();
+
+            const response = await ai.models.generateContent({
+                model: model || 'gemini-3-flash-preview',
+                contents,
+                config: config || {}
+            });
+
+            res.json({
+                text: response.text || '',
+                success: true,
+                usedModel: 'gemini'
+            });
+        }
     } catch (error: any) {
         console.error('[API Error]', error.message);
         res.status(500).json({

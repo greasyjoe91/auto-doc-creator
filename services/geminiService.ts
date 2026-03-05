@@ -59,7 +59,12 @@ const buildContentParts = (
           2. **布局复刻**：模版中图片和文字的比例、排列顺序必须保留。
           3. 输出格式：极具说服力的 Markdown。
           4. **视觉增强**：在模版预留的位置或你认为最适合的位置，从素材库中挑选图片并使用 \`{{IMAGE_X}}\` 插入。
-          ${template ? "5. **核心逻辑**：你可以把模版看作是一个‘容器’，现在的任务是把老产品的数据倒出来，把我们的新规格书数据装进去。" : ""}
+          5. **格式规范**：
+             - 副标题（如"产品简介"）使用 ### 三级标题，并在前后不留空行
+             - 图片说明文字格式：**图X：说明文字**（加粗，独立成行）
+             - 表格必须格式正确，不得出现乱码或分隔符错误的行
+             - 删除所有多余的空白行，段落之间只保留一个空行
+          ${template ? "6. **核心逻辑**：你可以把模版看作是一个’容器’，现在的任务是把老产品的数据倒出来，把我们的新规格书数据装进去。" : ""}
           ${videoInstruction}
        `;
       break;
@@ -189,7 +194,6 @@ export const generateDocument = async (
   // Validate inputs
   if (type === DocType.TECH_SPEC && inputs.sopFiles.length === 0) throw new Error("生成技术规格书至少需要一个 SOP 文件");
 
-  // Decoupled logic: Either techSpec (generated) or specFile (uploaded) must be present for Marketing/UserManual
   const specReady = !!inputs.specFile || !!inputs.techSpec;
 
   if (type === DocType.MARKETING && !specReady) throw new Error("生成营销文档需要参数规格书（上传或生成）");
@@ -204,7 +208,6 @@ export const generateDocument = async (
   const parts = buildContentParts(type, safeInputs);
 
   try {
-    // 调用后端代理服务，而非直接使用 API Key
     const response = await fetch(`${API_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: {
@@ -215,7 +218,8 @@ export const generateDocument = async (
         contents: [{ role: 'user', parts }],
         config: {
           thinkingConfig: { includeThoughts: true }
-        }
+        },
+        useQwen: false
       })
     });
 
@@ -228,6 +232,31 @@ export const generateDocument = async (
     return data.text || "未能生成内容。";
   } catch (error: any) {
     console.error(`生成 ${type} 时出错:`, error);
-    throw new Error(error.message || "未知的 API 错误");
+
+    // Gemini 失败时自动切换到 Qwen
+    console.log('尝试使用本地 Qwen 模型...');
+    try {
+      const qwenResponse = await fetch(`${API_BASE_URL}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MODEL_NAME,
+          contents: [{ role: 'user', parts }],
+          useQwen: true
+        })
+      });
+
+      if (!qwenResponse.ok) {
+        throw new Error('Qwen 模型也失败了');
+      }
+
+      const qwenData = await qwenResponse.json();
+      console.log('已切换到 Qwen 模型');
+      return qwenData.text || "未能生成内容。";
+    } catch (qwenError: any) {
+      throw new Error(`Gemini 和 Qwen 均失败: ${error.message}`);
+    }
   }
 };

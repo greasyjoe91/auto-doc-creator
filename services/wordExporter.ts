@@ -250,10 +250,13 @@ export const exportToWord = async (markdown: string, title: string) => {
                 spacing: { before: 320, after: 180 }
             }));
         } else if (line.startsWith('### ')) {
+            const h3Text = line.replace('### ', '');
+            // 副标题（如"产品简介"）居中显示
+            const isSubtitle = h3Text.includes('产品简介') || h3Text.includes('简介');
             docChildren.push(new Paragraph({
                 heading: HeadingLevel.HEADING_3,
-                children: parseInlineText(line.replace('### ', ''), { size: activeStyles.h3.fontSize, color: activeStyles.h3.color, font: commonFont, bold: true }),
-                alignment: activeStyles.h3.alignment,
+                children: parseInlineText(h3Text, { size: activeStyles.h3.fontSize, color: activeStyles.h3.color, font: commonFont, bold: true }),
+                alignment: isSubtitle ? AlignmentType.CENTER : activeStyles.h3.alignment,
                 spacing: { before: 240, after: 120 }
             }));
         } else if (line.startsWith('* ') || line.startsWith('- ')) {
@@ -269,9 +272,12 @@ export const exportToWord = async (markdown: string, title: string) => {
                 spacing: { line: activeStyles.lineSpacing, after: 120 }
             }));
         } else {
+            // 检测图片说明文字（格式：**图X：说明** 或 图X：说明）
+            const isFigureCaption = /^(\*\*)?图\s*\d+[：:]/i.test(line);
+
             docChildren.push(new Paragraph({
                 children: parseInlineText(line, { size: activeStyles.fontSize, color: activeStyles.paragraph.color, font: commonFont }),
-                alignment: activeStyles.paragraph.alignment,
+                alignment: isFigureCaption ? AlignmentType.CENTER : activeStyles.paragraph.alignment,
                 spacing: { line: activeStyles.lineSpacing, after: activeStyles.paragraph.spacingAfter },
             }));
         }
