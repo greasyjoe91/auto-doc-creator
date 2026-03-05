@@ -33,19 +33,20 @@ const mapAlignment = (a: string) => {
 
 // 默认样式常量
 const DEFAULT_STYLES = {
-    fontFamily: "Microsoft YaHei",
+    fontFamily: "SimSun",
+    h1FontFamily: "Microsoft YaHei",
     fontSize: 24, // 默认 12pt (24/2)
     lineSpacing: 360,
     colors: {
-        primary: "000000",
+        primary: "0066CC",
         text: "000000",
         tableHeaderBg: "F0F4F8"
     },
-    h1: { fontSize: 36, bold: true, alignment: AlignmentType.CENTER, color: "000000" },
-    h2: { fontSize: 32, bold: true, alignment: AlignmentType.LEFT, color: "000000" },
-    h3: { fontSize: 28, bold: true, alignment: AlignmentType.LEFT, color: "000000" },
-    paragraph: { alignment: AlignmentType.JUSTIFIED, spacingAfter: 240, color: "000000" },
-    table: { borderColor: "CCCCCC", headerColor: "000000" }
+    h1: { fontSize: 48, bold: true, alignment: AlignmentType.CENTER, color: "0066CC" },
+    h2: { fontSize: 32, bold: true, alignment: AlignmentType.LEFT, color: "0066CC" },
+    h3: { fontSize: 28, bold: true, alignment: AlignmentType.LEFT, color: "4D4D4D" },
+    paragraph: { alignment: AlignmentType.LEFT, spacingAfter: 0, color: "000000", firstLineIndent: 420 },
+    table: { borderColor: "BFBFBF", headerColor: "0066CC" }
 };
 
 /**
@@ -159,10 +160,10 @@ export const exportToWord = async (markdown: string, title: string) => {
     }
 
     // 2. 将 Markdown 转换为 docx 子元素
-    // 合并连续空行并过滤掉头部尾部空行
+    // 完全删除所有空白行
     const filteredLines = cleanMarkdown.split('\n')
         .map(l => l.trim())
-        .filter((line, index, arr) => line !== '' || (arr[index - 1] !== '' && index > 0));
+        .filter(line => line !== '');
 
     const docChildren: any[] = [];
     let currentTableRows: string[][] = [];
@@ -173,13 +174,14 @@ export const exportToWord = async (markdown: string, title: string) => {
         if (dataRows.length > 0) {
             docChildren.push(new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
+                alignment: AlignmentType.CENTER,
                 borders: {
-                    top: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
-                    bottom: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
-                    left: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
-                    right: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
-                    insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
-                    insideVertical: { style: BorderStyle.SINGLE, size: 1, color: activeStyles.table.borderColor },
+                    top: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
+                    bottom: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
+                    left: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
+                    right: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
+                    insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
+                    insideVertical: { style: BorderStyle.SINGLE, size: 6, color: activeStyles.table.borderColor },
                 },
                 rows: dataRows.map((rowData, rowIndex) => {
                     const isHeader = rowIndex === 0;
@@ -192,7 +194,8 @@ export const exportToWord = async (markdown: string, title: string) => {
                                     font: { ascii: activeStyles.fontFamily, eastAsia: activeStyles.fontFamily },
                                     size: activeStyles.fontSize
                                 }),
-                                alignment: AlignmentType.CENTER
+                                alignment: isHeader ? AlignmentType.CENTER : AlignmentType.LEFT,
+                                spacing: { line: 360 }
                             })],
                             shading: isHeader ? { fill: activeStyles.colors.tableHeaderBg, type: ShadingType.CLEAR, color: "auto" } : undefined,
                             verticalAlign: AlignmentType.CENTER
@@ -236,18 +239,19 @@ export const exportToWord = async (markdown: string, title: string) => {
         const commonFont = { ascii: activeStyles.fontFamily, eastAsia: activeStyles.fontFamily };
 
         if (line.startsWith('# ')) {
+            const h1Font = { ascii: activeStyles.h1FontFamily, eastAsia: activeStyles.h1FontFamily };
             docChildren.push(new Paragraph({
                 heading: HeadingLevel.HEADING_1,
-                children: parseInlineText(line.replace('# ', ''), { size: activeStyles.h1.fontSize, color: activeStyles.h1.color, font: commonFont, bold: true }),
+                children: parseInlineText(line.replace('# ', ''), { size: activeStyles.h1.fontSize, color: activeStyles.h1.color, font: h1Font, bold: true }),
                 alignment: activeStyles.h1.alignment,
-                spacing: { before: 400, after: 240 }
+                spacing: { before: 240, after: 240, line: 360 }
             }));
         } else if (line.startsWith('## ')) {
             docChildren.push(new Paragraph({
                 heading: HeadingLevel.HEADING_2,
                 children: parseInlineText(line.replace('## ', ''), { size: activeStyles.h2.fontSize, color: activeStyles.h2.color, font: commonFont, bold: true }),
                 alignment: activeStyles.h2.alignment,
-                spacing: { before: 320, after: 180 }
+                spacing: { before: 240, after: 180, line: 360 }
             }));
         } else if (line.startsWith('### ')) {
             const h3Text = line.replace('### ', '');
@@ -257,11 +261,12 @@ export const exportToWord = async (markdown: string, title: string) => {
                 heading: HeadingLevel.HEADING_3,
                 children: parseInlineText(h3Text, { size: activeStyles.h3.fontSize, color: activeStyles.h3.color, font: commonFont, bold: true }),
                 alignment: isSubtitle ? AlignmentType.CENTER : activeStyles.h3.alignment,
-                spacing: { before: 240, after: 120 }
+                spacing: { before: 200, after: 120, line: 360 }
             }));
-        } else if (line.startsWith('* ') || line.startsWith('- ')) {
+        } else if (line.startsWith('* ') || line.startsWith('- ') || line.startsWith('•') || line.startsWith('✓')) {
+            const text = line.startsWith('•') || line.startsWith('✓') ? line.substring(1).trim() : line.substring(2);
             docChildren.push(new Paragraph({
-                children: parseInlineText(line.substring(2), { size: activeStyles.fontSize, color: activeStyles.paragraph.color, font: commonFont }),
+                children: parseInlineText(text, { size: activeStyles.fontSize, color: activeStyles.paragraph.color, font: commonFont }),
                 bullet: { level: 0 },
                 spacing: { line: activeStyles.lineSpacing, after: 120 }
             }));
@@ -276,9 +281,10 @@ export const exportToWord = async (markdown: string, title: string) => {
             const isFigureCaption = /^(\*\*)?图\s*\d+[：:]/i.test(line);
 
             docChildren.push(new Paragraph({
-                children: parseInlineText(line, { size: activeStyles.fontSize, color: activeStyles.paragraph.color, font: commonFont }),
+                children: parseInlineText(line, { size: activeStyles.fontSize, color: activeStyles.paragraph.color, font: commonFont, bold: isFigureCaption }),
                 alignment: isFigureCaption ? AlignmentType.CENTER : activeStyles.paragraph.alignment,
-                spacing: { line: activeStyles.lineSpacing, after: activeStyles.paragraph.spacingAfter },
+                spacing: { line: activeStyles.lineSpacing, after: isFigureCaption ? 120 : activeStyles.paragraph.spacingAfter },
+                indent: isFigureCaption ? undefined : { firstLine: activeStyles.paragraph.firstLineIndent }
             }));
         }
     }

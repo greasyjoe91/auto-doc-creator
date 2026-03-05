@@ -15,7 +15,7 @@ const currentDir = typeof __dirname !== 'undefined'
 dotenv.config({ path: path.join(currentDir, '.env') });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // 中间件配置
 app.use(cors({
@@ -140,8 +140,26 @@ app.post('/api/generate', async (req, res) => {
                 config: config || {}
             });
 
+            // 提取图片数据
+            const imageFrames: string[] = [];
+            contents.forEach((content: any) => {
+                content.parts.forEach((part: any) => {
+                    if (part.inlineData && part.inlineData.mimeType.startsWith('image/')) {
+                        imageFrames.push(part.inlineData.data);
+                    }
+                });
+            });
+
+            // 替换{{IMAGE_X}}标签为实际的Markdown图片
+            let finalText = response.text || '';
+            imageFrames.forEach((base64Data, index) => {
+                const placeholder = `{{IMAGE_${index}}}`;
+                const markdownImage = `![图${index + 1}](data:image/jpeg;base64,${base64Data})`;
+                finalText = finalText.replace(new RegExp(placeholder, 'g'), markdownImage);
+            });
+
             res.json({
-                text: response.text || '',
+                text: finalText,
                 success: true,
                 usedModel: 'gemini'
             });
