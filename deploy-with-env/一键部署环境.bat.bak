@@ -1,0 +1,176 @@
+@echo off
+chcp 65001 >nul
+title AutoDoc Flow 一键部署环境安装器
+color 0A
+
+echo.
+echo ╔════════════════════════════════════════════════════════════╗
+echo ║          AutoDoc Flow 一键部署环境安装器                  ║
+echo ║                    版本: v1.2.0                            ║
+echo ╚════════════════════════════════════════════════════════════╝
+echo.
+
+REM 设置变量
+set NODE_VERSION=20.18.1
+set NODE_INSTALLER=node-v%NODE_VERSION%-x64.msi
+set NODE_URL=https://nodejs.org/dist/v%NODE_VERSION%/%NODE_INSTALLER%
+set INSTALL_DIR=%~dp0
+
+echo [步骤 1/4] 检查 Node.js 环境...
+echo.
+
+REM 检查是否已安装Node.js
+where node >nul 2>nul
+if %errorlevel% equ 0 (
+    echo [✓] 检测到已安装 Node.js
+    node --version
+    echo.
+    goto :install_deps
+)
+
+echo [!] 未检测到 Node.js，准备安装...
+echo.
+
+REM 检查是否已下载安装包
+if exist "%INSTALL_DIR%%NODE_INSTALLER%" (
+    echo [✓] 发现 Node.js 安装包: %NODE_INSTALLER%
+    goto :install_node
+)
+
+echo [下载] 正在下载 Node.js v%NODE_VERSION%...
+echo 下载地址: %NODE_URL%
+echo.
+echo 请选择下载方式：
+echo   1. 自动下载（推荐，需要网络连接）
+echo   2. 手动下载（如果自动下载失败）
+echo   3. 跳过安装（如果已有其他Node.js版本）
+echo.
+choice /C 123 /N /M "请输入选项 (1/2/3): "
+
+if errorlevel 3 goto :install_deps
+if errorlevel 2 goto :manual_download
+if errorlevel 1 goto :auto_download
+
+:auto_download
+echo.
+echo [下载中] 正在使用 PowerShell 下载 Node.js...
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%INSTALL_DIR%%NODE_INSTALLER%' -UseBasicParsing}"
+
+if %errorlevel% neq 0 (
+    echo [✗] 自动下载失败，请选择手动下载
+    goto :manual_download
+)
+
+echo [✓] 下载完成
+goto :install_node
+
+:manual_download
+echo.
+echo ════════════════════════════════════════════════════════════
+echo   手动下载说明
+echo ════════════════════════════════════════════════════════════
+echo.
+echo 1. 打开浏览器访问: https://nodejs.org/
+echo 2. 下载 Node.js v%NODE_VERSION% LTS 版本（Windows 64位）
+echo 3. 将下载的 %NODE_INSTALLER% 文件
+echo    放到当前文件夹: %INSTALL_DIR%
+echo 4. 完成后按任意键继续...
+echo.
+pause
+if not exist "%INSTALL_DIR%%NODE_INSTALLER%" (
+    echo [✗] 未找到安装包，请确认文件已放置到正确位置
+    pause
+    exit /b 1
+)
+
+:install_node
+echo.
+echo [步骤 2/4] 安装 Node.js...
+echo.
+echo [安装] 正在启动 Node.js 安装程序...
+echo 请在安装向导中：
+echo   - 接受许可协议
+echo   - 使用默认安装路径
+echo   - 勾选 "Add to PATH" 选项
+echo.
+start /wait msiexec /i "%INSTALL_DIR%%NODE_INSTALLER%" /qb
+
+if %errorlevel% neq 0 (
+    echo [✗] Node.js 安装失败
+    pause
+    exit /b 1
+)
+
+echo [✓] Node.js 安装完成
+echo.
+echo [提示] 需要重新打开命令行窗口以使环境变量生效
+echo        请关闭此窗口，重新运行此脚本继续安装
+echo.
+pause
+exit /b 0
+
+:install_deps
+echo [步骤 3/4] 安装项目依赖...
+echo.
+
+REM 检查项目文件
+if not exist "%INSTALL_DIR%server" (
+    echo [✗] 未找到 server 目录，请确认部署包完整
+    pause
+    exit /b 1
+)
+
+if not exist "%INSTALL_DIR%dist" (
+    echo [✗] 未找到 dist 目录，请确认部署包完整
+    pause
+    exit /b 1
+)
+
+echo [安装] 正在安装后端依赖...
+cd "%INSTALL_DIR%server"
+call npm install --production
+
+if %errorlevel% neq 0 (
+    echo [✗] 依赖安装失败，请检查网络连接
+    pause
+    exit /b 1
+)
+
+echo [✓] 依赖安装完成
+cd "%INSTALL_DIR%"
+
+:start_service
+echo.
+echo [步骤 4/4] 启动服务...
+echo.
+
+REM 检查配置文件
+if not exist "%INSTALL_DIR%server\.env" (
+    echo [!] 警告: 未找到配置文件 server\.env
+    echo     请配置 GEMINI_API_KEY 后再启动服务
+    echo.
+)
+
+echo [启动] 正在启动 AutoDoc Flow...
+start /B cmd /c "cd /d %INSTALL_DIR%server && npm start > ..\server.log 2>&1"
+
+timeout /t 3 /nobreak >nul
+
+echo.
+echo ╔════════════════════════════════════════════════════════════╗
+echo ║                    部署完成！                              ║
+echo ╚════════════════════════════════════════════════════════════╝
+echo.
+echo [✓] 服务已启动
+echo [✓] 访问地址: http://localhost:3005
+echo.
+echo 提示：
+echo   - 首次使用需要配置 server\.env 文件中的 GEMINI_API_KEY
+echo   - 查看日志: server.log
+echo   - 停止服务: 运行 stop.bat
+echo.
+
+start http://localhost:3005
+
+echo 按任意键关闭此窗口（服务将继续运行）...
+pause >nul

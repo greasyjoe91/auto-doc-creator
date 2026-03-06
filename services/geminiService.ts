@@ -2,8 +2,8 @@ import { DocType, FileData } from '../types';
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
-// 后端代理服务地址
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+// 后端代理服务地址（使用相对路径，自动适配当前访问地址）
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Helper to construct parts
 const buildContentParts = (
