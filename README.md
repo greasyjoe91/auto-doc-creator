@@ -1,161 +1,183 @@
 # AutoDoc Flow
 
-基于 **Gemini AI** 的智能软件文档生成工具。上传 SOP（标准操作流程）文件和软件录屏，一键生成规范化的技术文档。
+SOP文档自动化生成工具 - 基于AI的智能文档生成系统
 
-## ✨ 功能特性
+## 项目简介
 
-### 📄 三类文档一站生成
-- **软件参数规格书** — 深度分析 SOP 文件，输出符合国标的技术规格说明
-- **软件产品介绍** — 面向市场的产品概述，自动配图
-- **软件用户操作手册** — 面向终端用户的分步操作指南，支持截图插入
+AutoDoc Flow 是一款基于 Gemini AI 的智能文档生成工具，可以自动将 SOP 文档、视频、参数说明书等多种格式的输入材料，智能生成标准化的技术文档。
 
-### 📂 多格式文件输入
-- **SOP 文件**：支持 `.docx`、`.xlsx`、`.pdf`、`.txt`、`.md` 等多格式，支持多文件同时上传
-- **参考模版**：可为每类文档上传参考模版，AI 将严格遵循模版结构生成
-- **软件录屏**：上传 `.mp4` / `.webm` 视频，自动抽帧提取关键截图，AI 智能匹配插入文档
+## 功能特性
 
-### 📤 多格式导出
-- **Word (.docx)** — 可直接编辑的 Word 文档，支持图片嵌入
-- **HTML** — 带完整样式的网页文件
-- **剪贴板复制** — 一键复制纯文本 / 富文本内容
+- 📄 **多格式输入支持**：PDF、Word、Excel、TXT、视频（.mp4）
+- 🤖 **AI智能生成**：基于 Gemini API 自动生成专业文档
+- 📝 **三种文档类型**：
+  - 软件参数规格书
+  - 软件产品介绍
+  - 软件用户操作手册
+- 🎨 **格式化输出**：自动生成符合规范的 Word 文档
+- 🖼️ **图片处理**：自动提取和插入相关图片
+- 🌐 **双模式部署**：支持桌面应用和Web服务
 
-### 🎨 界面
-- 明暗主题自由切换
-- 响应式布局，适配不同屏幕尺寸
+## 技术栈
 
-## 🏗️ 技术架构
+- **前端**：React 18 + TypeScript + Vite + TailwindCSS
+- **后端**：Express + Node.js
+- **AI服务**：Google Gemini API
+- **文档处理**：mammoth、docx、marked
+- **桌面应用**：Electron
 
-```
-┌──────────────────────────────────────┐
-│           Electron 桌面壳            │
-│  ┌────────────────────────────────┐  │
-│  │   React + TypeScript 前端      │  │
-│  │   Vite 构建 · Tailwind CSS    │  │
-│  └──────────┬─────────────────────┘  │
-│             │ HTTP (localhost:3001)   │
-│  ┌──────────▼─────────────────────┐  │
-│  │   Express 后端代理             │  │
-│  │   API Key 安全隔离             │  │
-│  └──────────┬─────────────────────┘  │
-└─────────────┼────────────────────────┘
-              │ HTTPS
-     ┌────────▼────────┐
-     │  Google Gemini   │
-     │  API             │
-     └─────────────────┘
-```
-
-| 层级 | 技术栈 |
-|------|--------|
-| 前端 | React 19 + TypeScript + Tailwind CSS v4 |
-| 构建 | Vite 6 |
-| 后端 | Express + esbuild（编译为独立 CJS） |
-| AI   | Google Gemini (`gemini-3-flash-preview`) |
-| 桌面 | Electron 40 + electron-builder |
-| 文档解析 | mammoth (docx)、xlsx (Excel)、marked (Markdown) |
-| 文档导出 | docx.js、file-saver、DOMPurify |
-
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
-- **Node.js** ≥ 18
-- **npm** ≥ 9
-- **Gemini API Key**（[获取地址](https://aistudio.google.com/apikey)）
+- Node.js 18+
+- npm 或 yarn
 
-### 1. 安装依赖
+### 安装依赖
 
 ```bash
+# 克隆项目
+git clone https://github.com/greasyjoe91/auto-doc-creator.git
+cd auto-doc-creator
+
+# 安装前端依赖
 npm install
-cd server && npm install && cd ..
+
+# 安装后端依赖
+cd server
+npm install
 ```
 
-### 2. 配置环境变量
+### 配置
 
-在 `server/` 目录下创建 `.env` 文件：
-
+1. 复制环境变量配置文件：
 ```bash
-# server/.env
+cd server
+cp .env.example .env
+```
+
+2. 编辑 `.env` 文件，配置 Gemini API Key：
+```env
 GEMINI_API_KEY=your_api_key_here
-PORT=3001
+PORT=3005
 ```
 
-### 3. 开发模式运行
+### 运行
+
+#### 开发模式
 
 ```bash
-# 仅前端（浏览器访问 http://localhost:3000）
+# 启动后端服务
+cd server
 npm run dev
 
-# 仅后端
-npm run server:dev
+# 启动前端（新终端）
+cd ..
+npm run dev
+```
 
-# Electron 开发模式（前端 + 后端 + 桌面窗口）
+#### 桌面应用
+
+```bash
 npm run electron:dev
 ```
 
-### 4. 生产构建
+## 部署
+
+### Web版部署
+
+使用 `deploy-with-env` 部署包（包含完整环境）：
+
+1. 将 `deploy-with-env` 文件夹复制到目标服务器
+2. 配置 `server/.env` 文件
+3. 运行 `deploy.bat`（Windows）启动服务
+4. 访问 `http://localhost:3005`
+
+详细说明见 deploy-with-env/使用说明.md
+
+### 桌面应用打包
 
 ```bash
-# 构建前端
-npm run build
-
-# 构建后端（编译为独立 CJS 文件）
-npm run server:build
+npm run electron:build
 ```
 
-### 5. 桌面应用打包
+## 使用说明
 
-```bash
-# macOS (arm64)
-npm run electron:build:mac
+1. **上传SOP文档**：支持多个文件同时上传
+2. **上传参数说明书**（可选）：提供更详细的技术参数
+3. **上传参考模板**（可选）：自定义文档格式
+4. **上传视频**（可选）：自动提取关键帧作为配图
+5. **选择文档类型**：规格书、产品介绍或操作手册
+6. **生成文档**：AI自动生成并格式化
+7. **下载Word文档**：获取标准化的.docx文件
 
-# Windows (x64)
-npm run electron:build:win
-```
-
-打包产物位于 `dist_electron/` 目录：
-- **Mac**: `dist_electron/mac-arm64/AutoDoc Flow.app`
-- **Windows**: `dist_electron/win-unpacked/AutoDoc Flow.exe`
-
-## 📁 项目结构
+## 项目结构
 
 ```
 auto-doc-creator/
-├── App.tsx                 # 主应用组件（文件管理、文档生成、UI）
-├── index.html              # HTML 入口
-├── index.tsx               # React 入口
-├── index.css               # Tailwind CSS 入口
-├── types.ts                # TypeScript 类型定义
-├── main.cjs                # Electron 主进程
-├── vite.config.ts          # Vite 构建配置
-├── components/
-│   ├── Button.tsx          # 通用按钮组件
-│   └── StatusBadge.tsx     # 状态标识组件
-├── services/
-│   ├── geminiService.ts    # Gemini API 调用与 Prompt 构建
-│   ├── fileParser.ts       # 多格式文件解析（docx/xlsx/pdf/txt/video）
-│   └── wordExporter.ts     # Word 文档导出
-└── server/
-    ├── index.ts            # Express 后端（API 代理 + 静态文件伺服）
-    ├── .env                # 环境变量（API Key）
-    └── package.json        # 后端依赖
+├── src/                    # 前端源码
+│   ├── components/         # React组件
+│   ├── services/          # API服务
+│   └── types.ts           # 类型定义
+├── server/                # 后端服务
+│   ├── index.ts          # 服务入口
+│   ├── crypto.ts         # 加密工具
+│   └── .env              # 环境配置
+├── services/             # 共享服务
+│   ├── geminiService.ts  # Gemini API
+│   ├── wordExporter.ts   # Word导出
+│   └── fileParser.ts     # 文件解析
+├── deploy-with-env/      # 完整部署包
+├── deploy-package/       # 简化部署包
+└── electron/             # Electron配置
 ```
 
-## 🔒 安全设计
+## 配置说明
 
-- **API Key 隔离**：Gemini API Key 仅存储在后端 `.env` 中，前端通过 Express 代理调用，永远不会暴露在客户端代码中
-- **输入校验**：使用 DOMPurify 对 AI 生成的 HTML 内容进行 XSS 净化
-- **CORS 控制**：后端仅允许本地来源的请求
+### Gemini API Key
 
-## 📝 使用流程
+1. 访问 [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. 创建 API Key
+3. 配置到 `server/.env` 文件
 
-1. **上传 SOP 文件** — 在左侧面板上传一个或多个 SOP / 软件脚本文件
-2. **（可选）上传参考模版** — 为需要的文档类型上传 Word/文本模版
-3. **（可选）上传软件录屏** — 上传 MP4/WebM 视频，系统自动截取关键帧
-4. **选择文档类型** — 在顶部 Tab 切换到需要生成的文档类型
-5. **点击"开始生成"** — AI 分析所有输入材料后生成文档
-6. **导出** — 选择 Word / HTML / 复制 等方式导出
+### 端口配置
 
-## 📜 License
+默认端口：3005，可在 `server/.env` 中修改：
+```env
+PORT=3005
+```
 
-MIT
+## 常见问题
+
+### 1. 端口被占用
+
+修改 `server/.env` 中的 `PORT` 配置
+
+### 2. API调用失败
+
+检查 `GEMINI_API_KEY` 是否正确配置
+
+### 3. 局域网访问失败
+
+确保使用最新版本（已修复API地址硬编码问题）
+
+## 更新日志
+
+### v1.2.0 (2024-03-10)
+- 修复前端API地址硬编码问题，支持局域网访问
+- 修复部署包端口配置
+- 修复批处理文件编码问题
+- 优化依赖配置
+
+### v1.0.0
+- 初始版本发布
+- 支持三种文档类型生成
+- Electron桌面应用
+
+## 许可证
+
+MIT License
+
+## 联系方式
+
+- GitHub: [greasyjoe91/auto-doc-creator](https://github.com/greasyjoe91/auto-doc-creator)
