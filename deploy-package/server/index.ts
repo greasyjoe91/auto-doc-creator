@@ -54,22 +54,6 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Claude API 兼容接口 - 模型列表
-app.get('/v1/models', (req, res) => {
-    console.log('[Health Check] /v1/models called from:', req.ip);
-    const qwenModel = process.env.QWEN_MODEL || 'qwen2.5:14b';
-    res.json({
-        data: [
-            {
-                id: 'claude-3-opus-20240229',
-                object: 'model',
-                created: Date.now(),
-                owned_by: 'anthropic'
-            }
-        ]
-    });
-});
-
 // Claude API 兼容接口（用于 OpenClaw 等工具）
 app.post('/v1/messages', async (req, res) => {
     try {
